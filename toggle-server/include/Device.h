@@ -11,7 +11,6 @@ public:
   char dev_pinOut;
   char currentPinIn;
   char dev_Name[16];
-  bool needUpdateNow;
   int32_t timePinInChanged;
 
 public:
@@ -21,9 +20,13 @@ public:
 
   void checkUdpCommand(const char *cmd);
 
-  String generateUpdCommand();
+  char isTurnON();
+  char readPinIN();
 
-  bool sendUpdCommand();
+  void turnON();
+  void turnOFF();
+
+  String generateUpdCommand();
 };
 
 #endif

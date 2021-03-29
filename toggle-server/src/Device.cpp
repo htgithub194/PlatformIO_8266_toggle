@@ -2,13 +2,21 @@
 #include "AppContext.h"
 #include "Common.h"
 
+ICACHE_RAM_ATTR void interruptFunction()
+{
+    // update HARDWARE status
+    AppContext *pAppContext = AppContext::getInstance();
+    pAppContext->checkHardWareChanged();
+    //Serial.println("INTERRUPT");
+}
+
 stDevice::stDevice(char devName, char _pinIn, char _pinOut)
 {
     dev_pinIn = _pinIn;
     dev_pinOut = _pinOut;
-    currentPinIn = digitalRead(dev_pinIn);
     timePinInChanged = millis();
-    needUpdateNow = true;
+
+    currentPinIn = readPinIN();
 
     memset(dev_Name, 0, sizeof(dev_Name));
     int32_t chipId = AppContext::getInstance()->getChipId();
@@ -16,24 +24,26 @@ stDevice::stDevice(char devName, char _pinIn, char _pinOut)
 
     pinMode(dev_pinOut, OUTPUT);
     pinMode(dev_pinIn, INPUT_PULLUP);
-    digitalWrite(dev_pinOut, HIGH);
+
+    turnOFF();
+
+    AppContext::getInstance()->registerDevice(this);
+
+    attachInterrupt(digitalPinToInterrupt(_pinIn), interruptFunction, CHANGE);
 }
 
 void stDevice::checkHardWareChanged()
 {
     int32_t now = millis();
-    char currentBtn = digitalRead(dev_pinIn);
-    if (currentBtn == currentPinIn)
+
+    if (currentPinIn == readPinIN())
     {
         timePinInChanged = now;
     }
     else if (now - timePinInChanged > 200)
     {
-        currentPinIn = currentBtn;
-        char currentPinOut = digitalRead(dev_pinOut);
-        currentPinOut = (currentPinOut == LOW) ? HIGH : LOW;
-        digitalWrite(dev_pinOut, currentPinOut);
-        needUpdateNow = true;
+        currentPinIn = readPinIN();
+        isTurnON() ? turnOFF() : turnON();
     }
 }
 
@@ -42,8 +52,8 @@ void stDevice::checkUdpCommand(const char *cmd)
     char parseCmd_Dev_Name[16];
     char parseCmd_OnOff[8];
 
-    memset(parseCmd_Dev_Name,   0, sizeof(parseCmd_Dev_Name));
-    memset(parseCmd_OnOff,      0, sizeof(parseCmd_OnOff));
+    memset(parseCmd_Dev_Name, 0, sizeof(parseCmd_Dev_Name));
+    memset(parseCmd_OnOff, 0, sizeof(parseCmd_OnOff));
 
     sscanf(cmd, "%s %s", parseCmd_Dev_Name, parseCmd_OnOff);
 
@@ -52,8 +62,7 @@ void stDevice::checkUdpCommand(const char *cmd)
         return;
     }
 
-    digitalWrite(dev_pinOut, parseCmd_OnOff[0] == '1' ? LOW : HIGH);
-    needUpdateNow = true;
+    parseCmd_OnOff[0] == '1' ? turnON() : turnOFF();
 }
 
 String stDevice::generateUpdCommand()
@@ -63,27 +72,28 @@ String stDevice::generateUpdCommand()
     ret += "upd ";
     ret += dev_Name;
     ret += ' ';
-    ret += digitalRead(dev_pinOut) ? '0' : '1';
+    ret += isTurnON() ? '1' : '0';
 
     return ret;
 }
 
-bool stDevice::sendUpdCommand()
+void stDevice::turnON()
 {
-    if (needUpdateNow)
-    {
-        needUpdateNow = false;
+    digitalWrite(dev_pinOut, OUTPUT_ON);
+    AppContext::getInstance()->updateStatusMessage();
+}
 
-        AppContext *pAppContext = AppContext::getInstance();
-        WiFiUDP *pUdp = pAppContext->getUdp();
+void stDevice::turnOFF()
+{
+    digitalWrite(dev_pinOut, OUTPUT_OFF);
+    AppContext::getInstance()->updateStatusMessage();
+}
 
-        String Message = generateUpdCommand();
-        pUdp->beginPacket(UDP_IP, UDP_PORT);
-        pUdp->write(Message.c_str());
-        pUdp->endPacket();
+char stDevice::isTurnON()
+{
+    return digitalRead(dev_pinOut) == OUTPUT_ON ? 1 : 0;
+}
 
-        pAppContext->setDelayTime(50);
-        return true;
-    }
-    return false;
+char stDevice::readPinIN() {
+    return digitalRead(dev_pinIn);
 }

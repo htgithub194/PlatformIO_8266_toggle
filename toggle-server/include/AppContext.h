@@ -10,7 +10,18 @@
 class AppContext
 {
     char incomingPacket[255];
-    static AppContext* pInstance;
+    static AppContext *pInstance;
+    IPAddress mServerIP;
+    uint16_t mServerPort;
+
+    String mStatusMessage;
+
+    unsigned char mNumberOfDevices;
+
+    unsigned char mNumberOfReconnect;
+
+private:
+    AppContext();
 
 public:
     int32_t mChipId;
@@ -18,15 +29,15 @@ public:
 
     unsigned int mDelayTime;
 
-    stDevice* mDeviceList[MAX_DEVICE];
+    stDevice *mDeviceList[MAX_DEVICE];
 
 public:
-    static AppContext* getInstance();
+    static AppContext *getInstance();
 
     int32_t getChipId();
     void setChipId(int32_t);
 
-    WiFiUDP* getUdp();
+    WiFiUDP *getUdp();
     void initUdp();
 
     unsigned int getDelayTime();
@@ -36,8 +47,15 @@ public:
 
     void checkHardWareChanged();
     void checkUdpCommand();
-    void sendUpdCommand();
-    void setAllNeedUpdate();
+
+    void updateStatusMessage();
+
+    void sendUDP(const char *);
+    void sendUDP();
+
+    void registerDevice(stDevice *);
+
+    void connectWifi();
 };
 
 #endif
